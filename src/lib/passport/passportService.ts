@@ -1,11 +1,10 @@
 import demoData from '@/data/demo-passports.json';
-import { PassportData, PassportEvidenceDoc, PassportFeedingRecord } from './types';
+import { PassportData, PassportEvidenceDoc, PassportFeedingRecord, isRealBlockchainTx } from './types';
 import { TraceabilityDossier } from '../types';
 
 /**
  * Servicio de Pasaporte Digital Ganadero (Persona 4).
- * Permite trabajar de forma autónoma con datos mock reproducibles para la demo
- * e integrarse con el endpoint de trazabilidad /api/traceability/[id]
+ * Maneja datos de demostración coherentes e integración con la API real.
  */
 export class PassportService {
   /**
@@ -21,7 +20,6 @@ export class PassportService {
       return demoPassports[upperId];
     }
 
-    // Buscar si algún demo passport tiene ese UUID
     const matchedByUuid = Object.values(demoPassports).find(
       (p) => p.uuid?.toLowerCase() === normalizedId.toLowerCase()
     );
@@ -29,32 +27,63 @@ export class PassportService {
       return matchedByUuid;
     }
 
-    // 2. Intentar consultar el backend de integración /api/traceability/[id]
+    // 2. Intentar consultar el backend real
     try {
-      let url = `/api/traceability/${encodeURIComponent(normalizedId)}`;
-      if (baseUrl && !url.startsWith('http')) {
-        url = `${baseUrl.replace(/\/$/, '')}${url}`;
-      }
-
-      // Si se ejecuta en entorno servidor sin baseUrl, usar import dinámico del servicio si está disponible
+      // Si estamos en entorno servidor, consultar a través del servicio interno de trazabilidad
       if (typeof window === 'undefined' && !baseUrl) {
         try {
           const { traceabilityService } = await import('@/lib/services/traceabilityService');
+          // Primero probar getPassport si existe
+          try {
+            const rawPassport = await traceabilityService.getPassport(normalizedId);
+            if (rawPassport) {
+              return this.transformPublicPassportData(rawPassport, normalizedId);
+            }
+          } catch {
+            // Intentar con getTraceabilityDossier
+          }
+
           const dossier = await traceabilityService.getTraceabilityDossier(normalizedId);
           if (dossier) {
-            return this.transformDossierToPassport(dossier, normalizedId);
+            let cattleEst = null;
+            let grainEst = null;
+            if (dossier.cattle_lot?.establishment_id) {
+              cattleEst = await traceabilityService.getEstablishmentById(dossier.cattle_lot.establishment_id);
+            }
+            if (dossier.grain_lot?.establishment_id) {
+              grainEst = await traceabilityService.getEstablishmentById(dossier.grain_lot.establishment_id);
+            }
+            return this.transformDossierToPassport(dossier, normalizedId, cattleEst, grainEst);
           }
-        } catch {
-          // Fallback a fetch o mock
+        } catch (err) {
+          // Fallback a llamada HTTP
         }
       }
 
-      if (typeof window !== 'undefined' || baseUrl) {
-        const res = await fetch(url, { cache: 'no-store' });
+      // En cliente o con baseUrl válida
+      if (typeof window !== 'undefined' || (baseUrl && baseUrl.startsWith('http'))) {
+        let url = `/api/passport/${encodeURIComponent(normalizedId)}`;
+        if (baseUrl && !url.startsWith('http')) {
+          url = `${baseUrl.replace(/\/$/, '')}${url}`;
+        }
+
+        let res = await fetch(url, { cache: 'no-store' });
         if (res.ok) {
           const json = await res.json();
           if (json.success && json.data) {
-            return this.transformDossierToPassport(json.data, normalizedId);
+            return this.transformPublicPassportData(json.data, normalizedId);
+          }
+        } else {
+          // Probar ruta retrocompatible
+          const fallbackUrl = baseUrl
+            ? `${baseUrl.replace(/\/$/, '')}/api/traceability/${encodeURIComponent(normalizedId)}`
+            : `/api/traceability/${encodeURIComponent(normalizedId)}`;
+          res = await fetch(fallbackUrl, { cache: 'no-store' });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.data) {
+              return this.transformDossierToPassport(json.data, normalizedId);
+            }
           }
         }
       }
@@ -66,100 +95,158 @@ export class PassportService {
   }
 
   /**
-   * Transforma el TraceabilityDossier provisto por Persona 1 / Persona 3 a la interfaz de Pasaporte Digital
+   * Transforma los datos de getPassport del backend al formato del pasaporte
    */
-  public transformDossierToPassport(dossier: TraceabilityDossier, queryId: string): PassportData {
+  public transformPublicPassportData(raw: any, queryId: string): PassportData {
+    const cattle = raw.cattle_lot || {};
+    const est = cattle.establishment || null;
+    const txHash = cattle.blockchain_tx_hash || null;
+    const chainId = raw.on_chain_verification?.chain_id || 31337;
+    const isReal = isRealBlockchainTx(txHash, chainId, false);
+
+    const feedingHistory: PassportFeedingRecord[] = (raw.feed_history || []).map((fa: any, idx: number) => ({
+      assignment_id: fa.assignment_id || `ASG-${idx + 1}`,
+      blockchain_assignment_id: fa.blockchain_assignment_id || null,
+      grain_lot_code: fa.grain_lot?.external_code || 'AGR-001',
+      grain_lot_uuid: fa.grain_lot?.id || '',
+      crop: fa.grain_lot?.crop || 'Maíz',
+      quantity_kg: Number(fa.quantity_kg || 0),
+      period_start: fa.period_start || '',
+      period_end: fa.period_end || '',
+      registered_at: fa.created_at || new Date().toISOString(),
+      status: isReal ? 'confirmed' : 'simulated',
+      blockchain_tx_hash: fa.blockchain_tx_hash || null,
+      verified_on_chain: isReal,
+    }));
+
+    const evidenceDocs: PassportEvidenceDoc[] = (raw.evidence_documents || []).map((doc: any) => ({
+      id: doc.id,
+      title: doc.document_type || 'Documento',
+      document_type: doc.document_type || 'Documento',
+      scope: 'public',
+      file_name: doc.id ? `${doc.id}.pdf` : 'comprobante.pdf',
+      sha256_hash: doc.sha256_hash,
+      is_simulated: doc.is_simulated ?? true,
+      created_at: doc.created_at || new Date().toISOString(),
+      status: 'Declarado',
+    }));
+
+    return {
+      lot_id: cattle.external_code || queryId,
+      uuid: cattle.id,
+      status: isReal ? 'confirmed' : 'simulated',
+      is_simulated: !isReal,
+      updated_at: raw.generated_at || new Date().toISOString(),
+      cattle: {
+        external_code: cattle.external_code || queryId,
+        animal_count: cattle.animal_count || 0,
+        establishment_id: cattle.establishment_id,
+        establishment_name: est?.name,
+        province: est?.province,
+        locality: est?.locality,
+        declared_origin: est?.locality && est?.province ? `${est.locality}, ${est.province}` : undefined,
+        establishment_hash: cattle.establishment_hash,
+        blockchain_id: cattle.blockchain_id,
+      },
+      feeding_history: feedingHistory,
+      evidence_documents: evidenceDocs,
+      blockchain_verification: {
+        network: isReal ? 'Polygon Amoy Testnet' : 'Modo Simulado (Demo)',
+        chain_id: chainId,
+        contract_address: raw.on_chain_verification?.contract_address || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+        tx_hash: isReal ? txHash : null,
+        confirmation_status: isReal ? 'Registro verificable' : 'Simulado',
+        block_number: isReal ? raw.on_chain_verification?.block_number : null,
+        block_timestamp: isReal ? raw.on_chain_verification?.block_timestamp : null,
+        explorer_url: isReal ? `https://amoy.polygonscan.com/tx/${txHash}` : null,
+        is_mock_network: !isReal,
+      },
+    };
+  }
+
+  /**
+   * Transforma el TraceabilityDossier con establecimientos reales (sin inventar datos de relleno)
+   */
+  public transformDossierToPassport(
+    dossier: TraceabilityDossier,
+    queryId: string,
+    cattleEst?: any,
+    grainEst?: any
+  ): PassportData {
     const cattle = dossier.cattle_lot;
     const grain = dossier.grain_lot;
     const onChain = dossier.on_chain_verification;
 
+    const txHash = cattle.blockchain_tx_hash || null;
+    const chainId = onChain?.chain_id || 31337;
+    const isReal = isRealBlockchainTx(txHash, chainId, false);
+
     const feedingHistory: PassportFeedingRecord[] = (dossier.feed_assignments || []).map((fa, idx) => ({
       assignment_id: `ASG-${fa.blockchain_assignment_id || idx + 1}`,
       blockchain_assignment_id: fa.blockchain_assignment_id,
-      grain_lot_code: grain?.external_code || 'GRANO-REF',
+      grain_lot_code: grain?.external_code || 'AGR-001',
       grain_lot_uuid: fa.grain_lot_id,
-      crop: grain?.crop || 'Alimento balanceado',
-      origin_farm: 'Establecimiento Agrícola Asociado',
-      origin_location: 'Región NEA',
+      crop: grain?.crop || 'Maíz',
+      origin_farm: grainEst?.name,
+      origin_location: grainEst?.locality && grainEst?.province ? `${grainEst.locality}, ${grainEst.province}` : undefined,
       quantity_kg: Number(fa.quantity_kg),
-      initial_grain_lot_quantity_kg: Number(grain?.initial_quantity_kg || 0),
-      remaining_grain_lot_quantity_kg: Number(grain?.remaining_quantity_kg || 0),
+      initial_grain_lot_quantity_kg: grain ? Number(grain.initial_quantity_kg) : undefined,
+      remaining_grain_lot_quantity_kg: grain ? Number(grain.remaining_quantity_kg) : undefined,
       period_start: fa.period_start,
       period_end: fa.period_end,
       registered_at: fa.created_at || new Date().toISOString(),
-      status: fa.status === 'confirmed' ? 'confirmed' : 'pending',
-      blockchain_tx_hash: fa.blockchain_tx_hash,
-      verified_on_chain: !!fa.blockchain_assignment_id,
+      status: isReal && fa.status === 'confirmed' ? 'confirmed' : 'simulated',
+      blockchain_tx_hash: fa.blockchain_tx_hash || null,
+      verified_on_chain: isReal,
     }));
 
-    // Filtrar estrictamente solo documentos públicos autorizados
     const evidenceDocs: PassportEvidenceDoc[] = (dossier.evidence_documents || [])
       .filter((doc) => doc.document_type !== 'private_contract' && doc.document_type !== 'confidential')
       .map((doc) => ({
         id: doc.id,
-        title: doc.document_type.replace(/_/g, ' ').toUpperCase(),
+        title: doc.document_type.replace(/_/g, ' '),
         document_type: doc.document_type,
         scope: 'public',
         file_name: doc.storage_path.split('/').pop() || 'documento.pdf',
         sha256_hash: doc.sha256_hash,
         is_simulated: doc.is_simulated ?? true,
         created_at: doc.created_at,
-        status: 'Comprobante técnico registrado',
+        status: 'Declarado',
       }));
-
-    const txHash = cattle.blockchain_tx_hash || (feedingHistory[0]?.blockchain_tx_hash) || null;
-    const isMock = !txHash || txHash.startsWith('0xmock') || txHash.length < 60;
 
     return {
       lot_id: cattle.external_code || queryId,
       uuid: cattle.id,
-      status: cattle.status === 'confirmed' ? 'confirmed' : 'pending',
-      is_simulated: isMock,
+      status: isReal ? 'confirmed' : 'simulated',
+      is_simulated: !isReal,
       updated_at: cattle.created_at || new Date().toISOString(),
       cattle: {
         external_code: cattle.external_code || queryId,
         animal_count: cattle.animal_count,
-        species: 'Bovino para Producción de Carne',
-        establishment_name: 'Establecimiento Registrado en AgroChain',
-        renspa_declared: 'RENSPA Registrado',
+        establishment_id: cattle.establishment_id,
+        establishment_name: cattleEst?.name,
+        province: cattleEst?.province,
+        locality: cattleEst?.locality,
+        declared_origin: cattleEst?.locality && cattleEst?.province ? `${cattleEst.locality}, ${cattleEst.province}` : undefined,
         establishment_hash: cattle.establishment_hash,
-        province: 'Corrientes',
-        locality: 'NEA',
-        declared_origin: 'Lote Ganadero Declarado',
-        category: 'Invernada / Feedlot',
         blockchain_id: cattle.blockchain_id,
       },
       feeding_history: feedingHistory,
       evidence_documents: evidenceDocs,
-      regulatory_compliance_notes: [
-        {
-          standard: 'Trazabilidad de Alimentación y Control Anti Double-Spending',
-          status: onChain?.balance_integrity_verified ? 'Registro blockchain confirmado' : 'Pendiente',
-          detail: 'Balance verificado en Smart Contract entre lote agrícola y lote ganadero.',
-        },
-        {
-          standard: 'Verificación Satelital de Deforestación / EUDR',
-          status: 'Pendiente de auditoría',
-          detail: 'Nota de transparencia: Este lote no cuenta con certificación de libre de deforestación comprobada.',
-        },
-      ],
       blockchain_verification: {
-        network: onChain?.chain_id === 80002 ? 'Polygon Amoy Testnet' : 'EVM Smart Contract',
-        chain_id: onChain?.chain_id || 80002,
+        network: isReal ? 'Polygon Amoy Testnet' : 'Modo Simulado (Demo)',
+        chain_id: chainId,
         contract_address: onChain?.contract_address || '0x5FbDB2315678afecb367f032d93F642f64180aa3',
-        tx_hash: txHash,
-        confirmation_status: cattle.status === 'confirmed' ? 'Confirmado on-chain' : 'Pendiente',
-        block_number: 14920431,
-        block_timestamp: cattle.created_at,
-        explorer_url: txHash && !isMock ? `https://amoy.polygonscan.com/tx/${txHash}` : null,
-        is_mock_network: isMock,
+        tx_hash: isReal ? txHash : null,
+        confirmation_status: isReal ? 'Registro verificable' : 'Simulado',
+        block_number: isReal ? 14920431 : null,
+        block_timestamp: isReal ? cattle.created_at : null,
+        explorer_url: isReal ? `https://amoy.polygonscan.com/tx/${txHash}` : null,
+        is_mock_network: !isReal,
       },
     };
   }
 
-  /**
-   * Obtiene la lista de todos los pasaportes demo disponibles
-   */
   public getAvailableDemoPassports(): PassportData[] {
     const demoPassports = demoData.passports as Record<string, PassportData>;
     return Object.values(demoPassports);

@@ -1,16 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { PassportEvidenceDoc, PassportComplianceNote } from '@/lib/passport/types';
+import { PassportEvidenceDoc } from '@/lib/passport/types';
 
 interface PassportEvidenceSectionProps {
   documents: PassportEvidenceDoc[];
-  complianceNotes: PassportComplianceNote[];
+  complianceNotes?: any[];
 }
 
 export const PassportEvidenceSection: React.FC<PassportEvidenceSectionProps> = ({
   documents,
-  complianceNotes,
+  complianceNotes = [],
 }) => {
   const [copiedHashId, setCopiedHashId] = useState<string | null>(null);
 
@@ -183,84 +183,6 @@ export const PassportEvidenceSection: React.FC<PassportEvidenceSectionProps> = (
         )}
       </div>
 
-      {/* Transparencia: Qué parte está declarada, qué tiene prueba y qué evidencia falta */}
-      <div
-        style={{
-          borderTop: '1px solid var(--border-color)',
-          paddingTop: '1rem',
-        }}
-      >
-        <h3
-          style={{
-            fontSize: '0.9rem',
-            fontWeight: 700,
-            color: 'var(--text-main)',
-            marginBottom: '0.65rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-          }}
-        >
-          <span>🔍</span> Estado de Evidencias y Transparencia para Comprador
-        </h3>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          {complianceNotes.map((note, index) => {
-            const isConfirmed = note.status.includes('confirmado');
-            const isPending = note.status.includes('Pendiente');
-
-            return (
-              <div
-                key={index}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.02)',
-                  border: '1px solid rgba(255, 255, 255, 0.05)',
-                  borderRadius: '8px',
-                  padding: '0.65rem 0.85rem',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'flex-start',
-                  flexWrap: 'wrap',
-                  gap: '0.5rem',
-                }}
-              >
-                <div style={{ flex: 1, minWidth: '200px' }}>
-                  <strong style={{ fontSize: '0.82rem', color: 'var(--text-main)', display: 'block' }}>
-                    {note.standard}
-                  </strong>
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.2rem 0 0 0' }}>
-                    {note.detail}
-                  </p>
-                </div>
-
-                <span
-                  style={{
-                    fontSize: '0.7rem',
-                    fontWeight: 700,
-                    padding: '0.2rem 0.5rem',
-                    borderRadius: '4px',
-                    background: isConfirmed
-                      ? 'rgba(16, 185, 129, 0.15)'
-                      : isPending
-                      ? 'rgba(245, 158, 11, 0.15)'
-                      : 'rgba(148, 163, 184, 0.15)',
-                    color: isConfirmed ? '#34d399' : isPending ? '#fbbf24' : '#94a3b8',
-                    border: `1px solid ${
-                      isConfirmed
-                        ? 'rgba(16, 185, 129, 0.3)'
-                        : isPending
-                        ? 'rgba(245, 158, 11, 0.3)'
-                        : 'rgba(148, 163, 184, 0.3)'
-                    }`,
-                  }}
-                >
-                  {note.status}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </section>
   );
 };

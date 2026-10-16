@@ -1,7 +1,7 @@
 import React from 'react';
 import { Metadata } from 'next';
 import { passportService } from '@/lib/passport/passportService';
-import { PassportClientView } from '@/components/passport/PassportClientView';
+import { PassportLightView as PassportClientView } from '@/components/passport/PassportLightView';
 import { PassportNotFound } from '@/components/passport/PassportNotFound';
 
 export const dynamic = 'force-dynamic';
