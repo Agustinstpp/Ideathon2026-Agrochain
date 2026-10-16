@@ -39,6 +39,11 @@ const config: HardhatUserConfig = {
       chainId: 11155111,
       accounts: OPERATOR_PRIVATE_KEY,
     },
+    hederaTestnet: {
+      url: process.env.HEDERA_RPC_URL || "https://testnet.hashio.io/api",
+      chainId: 296,
+      accounts: OPERATOR_PRIVATE_KEY,
+    },
   },
   paths: {
     sources: "./contracts",

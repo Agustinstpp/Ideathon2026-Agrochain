@@ -1,9 +1,9 @@
 {
-  "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-  "chainId": 31337,
-  "network": "hardhat",
-  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-  "deployedAt": "2026-10-16T03:59:23.882Z",
+  "address": "0x51b928e48E7B0129e6a7aCBF74db4B3d7c8d22D2",
+  "chainId": 296,
+  "network": "hederaTestnet",
+  "deployer": "0x5A9d0d6FCC4480E4b27655521181f9D9A72C2ba0",
+  "deployedAt": "2026-10-16T18:16:02.557Z",
   "abi": [
     {
       "inputs": [],

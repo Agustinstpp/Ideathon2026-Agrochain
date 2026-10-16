@@ -1,7 +1,10 @@
 import { ethers } from "ethers";
 import * as fs from "fs";
 import * as path from "path";
+import * as dotenv from "dotenv";
 import { hexToBytes32 } from "../utils/hash";
+
+dotenv.config();
 
 // Safe server-only check to guarantee no private key leakage to frontend bundles
 if (typeof window !== "undefined") {
@@ -105,9 +108,10 @@ class BlockchainServerService {
   private init() {
     const rpcUrl =
       process.env.BLOCKCHAIN_RPC_URL ||
+      process.env.HEDERA_RPC_URL ||
       process.env.POLYGON_AMOY_RPC_URL ||
       process.env.SEPOLIA_RPC_URL ||
-      "http://127.0.0.1:8545";
+      "https://testnet.hashio.io/api";
 
     const privateKey = process.env.OPERATOR_PRIVATE_KEY;
     const contractAddress = process.env.CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || defaultContractAddress;
@@ -124,7 +128,11 @@ class BlockchainServerService {
         // Async chain verification in background
         this.provider.getNetwork().then((net) => {
           this.chainId = Number(net.chainId);
-          this.networkName = net.name;
+          if (this.chainId === 296) {
+            this.networkName = "Hedera Testnet";
+          } else {
+            this.networkName = net.name;
+          }
         }).catch(() => {
           // Keep defaults if offline
         });
@@ -171,6 +179,13 @@ class BlockchainServerService {
     return new Error(`Blockchain Revert: ${message}`);
   }
 
+  private getGasOverrides(): { gasLimit?: number } {
+    if (this.chainId === 296) {
+      return { gasLimit: 1_000_000 };
+    }
+    return {};
+  }
+
   /**
    * Register Grain Lot on Chain
    */
@@ -196,7 +211,8 @@ class BlockchainServerService {
           // "does not exist" is expected when creating a new one
         }
 
-        const tx = await this.contract.registerGrainLot(id, crop, initialQuantityKg, originBytes32);
+        const overrides = this.getGasOverrides();
+        const tx = await this.contract.registerGrainLot(id, crop, initialQuantityKg, originBytes32, overrides);
         const receipt = await tx.wait(1);
 
         return {
@@ -262,7 +278,8 @@ class BlockchainServerService {
           if (e.message.includes("already exists")) throw e;
         }
 
-        const tx = await this.contract.registerCattleLot(id, animalCount, establishmentBytes32);
+        const overrides = this.getGasOverrides();
+        const tx = await this.contract.registerCattleLot(id, animalCount, establishmentBytes32, overrides);
         const receipt = await tx.wait(1);
 
         return {
@@ -321,13 +338,15 @@ class BlockchainServerService {
           throw new Error("AgroChainTrace: insufficient grain inventory");
         }
 
+        const overrides = this.getGasOverrides();
         const tx = await this.contract.assignFeed(
           assignmentId,
           grainLotId,
           cattleLotId,
           quantityKg,
           periodStart,
-          periodEnd
+          periodEnd,
+          overrides
         );
         const receipt = await tx.wait(1);
 

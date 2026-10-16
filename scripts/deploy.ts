@@ -14,20 +14,36 @@ async function main() {
 
   const balance = await ethers.provider.getBalance(deployer.address);
   console.log(`Deployer address: ${deployer.address}`);
-  console.log(`Deployer balance: ${ethers.formatEther(balance)} ETH / POL`);
+  console.log(`Deployer balance: ${ethers.formatEther(balance)} ETH / POL / HBAR`);
+
+  const currentNetwork = await ethers.provider.getNetwork();
+  const chainId = currentNetwork.chainId.toString();
+  const isHedera = network.name === "hederaTestnet" || chainId === "296";
 
   const AgroChainTraceFactory = await ethers.getContractFactory("AgroChainTrace");
-  const contract = await AgroChainTraceFactory.deploy();
+  // Hedera EVM uses custom gas estimation; providing explicit gasLimit ensures smooth deployment
+  const deployOverrides = isHedera ? { gasLimit: 2_500_000 } : {};
+  const contract = await AgroChainTraceFactory.deploy(deployOverrides);
   await contract.waitForDeployment();
 
   const contractAddress = await contract.getAddress();
-  const chainId = (await ethers.provider.getNetwork()).chainId.toString();
+  const deployTx = contract.deploymentTransaction();
+  const txHash = deployTx ? deployTx.hash : "";
 
   console.log("----------------------------------------------------");
   console.log(`AgroChainTrace deployed successfully!`);
   console.log(`Contract Address: ${contractAddress}`);
   console.log(`Chain ID:         ${chainId}`);
   console.log(`Network Name:     ${network.name}`);
+  if (txHash) {
+    console.log(`Deploy Tx Hash:   ${txHash}`);
+  }
+  if (isHedera) {
+    console.log(`HashScan Contract: https://hashscan.io/testnet/contract/${contractAddress}`);
+    if (txHash) {
+      console.log(`HashScan Deploy Tx: https://hashscan.io/testnet/transaction/${txHash}`);
+    }
+  }
   console.log("----------------------------------------------------");
 
   // Read ABI from Hardhat artifact
