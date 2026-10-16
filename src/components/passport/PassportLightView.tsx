@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import "@/components/ui/agrochain.css";
 import Link from "next/link";
 import { PassportData, isRealBlockchainTx } from "@/lib/passport/types";
 import { Icon } from "@/components/ui/Icon";
@@ -16,7 +17,10 @@ export function PassportLightView({ passport }: PassportLightViewProps) {
   const [copiedHash, setCopiedHash] = useState(false);
 
   const lotId = passport.cattle.external_code || passport.lot_id;
-  const qrUrl = publicUrl(`/pasaporte/${encodeURIComponent(lotId)}`);
+  const path = `/pasaporte/${encodeURIComponent(lotId)}`;
+  // La URL completa se arma en el navegador: en el servidor no hay dominio y React marca error de hidratación.
+  const [qrUrl, setQrUrl] = useState(process.env.NEXT_PUBLIC_APP_URL ? publicUrl(path) : path);
+  useEffect(() => setQrUrl(publicUrl(path)), [path]);
   const isLocal = /localhost|127\.0\.0\.1/.test(qrUrl);
 
   const isReal = isRealBlockchainTx(
