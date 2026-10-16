@@ -2,10 +2,15 @@ import { ethers } from "ethers";
 import { hexToBytes32 } from "../utils/hash";
 import * as fs from "fs";
 import * as path from "path";
+import * as dotenv from "dotenv";
 
-// Cargar ABI del contrato compilado
+dotenv.config();
+
+// Cargar ABI y metadatos del contrato desplegado
 let AgroChainAbi: any[] = [];
 let defaultContractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || process.env.CONTRACT_ADDRESS || "";
+let defaultChainId = 296; // Hedera Testnet por defecto
+let defaultNetwork = "hederaTestnet";
 
 try {
   const deploymentPath = path.join(process.cwd(), "src/lib/blockchain/AgroChainTraceDeployment.json");
@@ -15,12 +20,18 @@ try {
     if (!defaultContractAddress && deployment.address) {
       defaultContractAddress = deployment.address;
     }
+    if (deployment.chainId) {
+      defaultChainId = Number(deployment.chainId);
+    }
+    if (deployment.network) {
+      defaultNetwork = deployment.network;
+    }
   }
 } catch {
-  // Ignorar en tiempo de inicializacion si aun no se ha desplegado
+  // Ignorar en tiempo de inicialización si aún no se ha desplegado
 }
 
-// ABI minimo fallback de AgroChainTrace en caso de no haberse exportado todavia el JSON
+// ABI mínimo fallback de AgroChainTrace en caso de no haberse exportado todavía el JSON
 const fallbackAbi = [
   "function registerGrainLot(uint256 id, string crop, uint256 initialQuantityKg, bytes32 originHash) external",
   "function registerCattleLot(uint256 id, uint256 animalCount, bytes32 establishmentHash) external",
@@ -41,8 +52,10 @@ export class BlockchainService {
   private wallet: ethers.Wallet | null = null;
   private contract: ethers.Contract | null = null;
   private isSimulationMode: boolean = false;
+  private chainId: number = defaultChainId;
+  private networkName: string = defaultNetwork;
 
-  // Estado en memoria para simulacion offline o fallback si la testnet no responde
+  // Estado en memoria para simulación offline o fallback si la testnet no responde
   private mockGrainLots: Map<number, any> = new Map();
   private mockCattleLots: Map<number, any> = new Map();
   private mockAssignments: Map<number, any> = new Map();
@@ -54,9 +67,10 @@ export class BlockchainService {
   private init() {
     const rpcUrl =
       process.env.BLOCKCHAIN_RPC_URL ||
+      process.env.HEDERA_RPC_URL ||
       process.env.POLYGON_AMOY_RPC_URL ||
       process.env.SEPOLIA_RPC_URL ||
-      "http://127.0.0.1:8545";
+      "https://testnet.hashio.io/api";
 
     const privateKey = process.env.OPERATOR_PRIVATE_KEY;
     const contractAddress = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || defaultContractAddress;
@@ -69,6 +83,17 @@ export class BlockchainService {
         const abi = AgroChainAbi.length > 0 ? AgroChainAbi : fallbackAbi;
         this.contract = new ethers.Contract(contractAddress, abi, this.wallet);
         this.isSimulationMode = false;
+
+        this.provider.getNetwork().then((net) => {
+          this.chainId = Number(net.chainId);
+          if (this.chainId === 296) {
+            this.networkName = "Hedera Testnet";
+          } else {
+            this.networkName = net.name || defaultNetwork;
+          }
+        }).catch(() => {
+          // Mantener defaults si la red no responde de inmediato
+        });
         return;
       } catch (e) {
         console.warn("Failed to initialize real blockchain connection, falling back to simulated mode:", e);
@@ -84,32 +109,62 @@ export class BlockchainService {
       ? (typeof this.contract.target === "string" ? this.contract.target : String(this.contract.target))
       : (defaultContractAddress || "SIMULATED_CONTRACT");
 
+    const explorerUrl =
+      this.chainId === 296
+        ? `https://hashscan.io/testnet/contract/${addressStr}`
+        : `https://amoy.polygonscan.com/address/${addressStr}`;
+
     return {
       simulationMode: this.isSimulationMode,
       contractAddress: addressStr,
+      chainId: this.chainId,
+      network: this.networkName,
+      explorerUrl: !this.isSimulationMode ? explorerUrl : undefined,
       operatorAddress: this.wallet ? this.wallet.address : "SIMULATED_OPERATOR_0xAgrochain",
     };
   }
 
+  public getExplorerTxUrl(txHash: string): string | null {
+    if (!txHash || txHash.includes("simulat")) return null;
+    if (this.chainId === 296) {
+      return `https://hashscan.io/testnet/transaction/${txHash}`;
+    }
+    if (this.chainId === 80002) {
+      return `https://amoy.polygonscan.com/tx/${txHash}`;
+    }
+    return `https://hashscan.io/testnet/transaction/${txHash}`;
+  }
+
+  private getGasOverrides(): { gasLimit?: number } {
+    // Hedera EVM se beneficia de un gasLimit explícito para evitar fallas de estimación
+    if (this.chainId === 296 || defaultChainId === 296) {
+      return { gasLimit: 1_000_000 };
+    }
+    return {};
+  }
+
   /**
-   * Registra un Lote Agricola en la blockchain
+   * Registra un Lote Agrícola en la blockchain
    */
   public async registerGrainLot(
     id: number,
     crop: string,
     initialQuantityKg: number,
     originHashHex: string
-  ): Promise<{ txHash: string; remainingQuantityKg: number; isSimulated: boolean }> {
+  ): Promise<{ txHash: string; remainingQuantityKg: number; isSimulated: boolean; explorerUrl?: string }> {
     const originBytes32 = hexToBytes32(originHashHex);
 
     if (this.contract && !this.isSimulationMode) {
       try {
-        const tx = await this.contract.registerGrainLot(id, crop, initialQuantityKg, originBytes32);
+        const overrides = this.getGasOverrides();
+        const tx = await this.contract.registerGrainLot(id, crop, initialQuantityKg, originBytes32, overrides);
         const receipt = await tx.wait();
+        const txHash = receipt.hash;
         return {
-          txHash: receipt.hash,
+          txHash,
           remainingQuantityKg: initialQuantityKg,
           isSimulated: false,
+          explorerUrl: this.getExplorerTxUrl(txHash) || undefined,
         };
       } catch (err: any) {
         console.error("On-chain registerGrainLot error:", err.message);
@@ -145,16 +200,19 @@ export class BlockchainService {
     id: number,
     animalCount: number,
     establishmentHashHex: string
-  ): Promise<{ txHash: string; isSimulated: boolean }> {
+  ): Promise<{ txHash: string; isSimulated: boolean; explorerUrl?: string }> {
     const establishmentBytes32 = hexToBytes32(establishmentHashHex);
 
     if (this.contract && !this.isSimulationMode) {
       try {
-        const tx = await this.contract.registerCattleLot(id, animalCount, establishmentBytes32);
+        const overrides = this.getGasOverrides();
+        const tx = await this.contract.registerCattleLot(id, animalCount, establishmentBytes32, overrides);
         const receipt = await tx.wait();
+        const txHash = receipt.hash;
         return {
-          txHash: receipt.hash,
+          txHash,
           isSimulated: false,
+          explorerUrl: this.getExplorerTxUrl(txHash) || undefined,
         };
       } catch (err: any) {
         console.error("On-chain registerCattleLot error:", err.message);
@@ -181,7 +239,7 @@ export class BlockchainService {
   }
 
   /**
-   * Asignacion de Alimento (Core Anti Double-Spending)
+   * Asignación de Alimento (Core Anti Double-Spending)
    */
   public async assignFeed(
     assignmentId: number,
@@ -190,23 +248,27 @@ export class BlockchainService {
     quantityKg: number,
     periodStartTimestamp: number,
     periodEndTimestamp: number
-  ): Promise<{ txHash: string; remainingQuantityKg: number; isSimulated: boolean }> {
+  ): Promise<{ txHash: string; remainingQuantityKg: number; isSimulated: boolean; explorerUrl?: string }> {
     if (this.contract && !this.isSimulationMode) {
       try {
+        const overrides = this.getGasOverrides();
         const tx = await this.contract.assignFeed(
           assignmentId,
           grainLotId,
           cattleLotId,
           quantityKg,
           periodStartTimestamp,
-          periodEndTimestamp
+          periodEndTimestamp,
+          overrides
         );
         const receipt = await tx.wait();
         const remainingBigInt = await this.contract.getRemainingQuantity(grainLotId);
+        const txHash = receipt.hash;
         return {
-          txHash: receipt.hash,
+          txHash,
           remainingQuantityKg: Number(remainingBigInt),
           isSimulated: false,
+          explorerUrl: this.getExplorerTxUrl(txHash) || undefined,
         };
       } catch (err: any) {
         console.error("On-chain assignFeed error:", err.message);
@@ -306,7 +368,7 @@ export class BlockchainService {
   }
 
   /**
-   * Consulta asignacion de alimento
+   * Consulta asignación de alimento
    */
   public async getFeedAssignment(assignmentId: number): Promise<any> {
     if (this.contract && !this.isSimulationMode) {

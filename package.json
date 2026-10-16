@@ -12,6 +12,7 @@
     "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
     "deploy:amoy": "hardhat run scripts/deploy.ts --network polygonAmoy",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
+    "deploy:hedera": "hardhat run scripts/deploy.ts --network hederaTestnet",
     "seed": "hardhat run scripts/seed.ts",
     "test:integration": "tsx scripts/run-integration-tests.ts"
   },

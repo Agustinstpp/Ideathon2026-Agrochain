@@ -17,8 +17,8 @@ export async function GET() {
     },
     blockchain: {
       ...status,
-      network: process.env.NODE_ENV === "production" ? "Polygon Amoy / Sepolia" : "Polygon Amoy (80002) / Local",
-      supported_chains: [80002, 11155111, 31337],
+      network: status.network || "Hedera Testnet (Chain ID 296)",
+      supported_chains: [296, 80002, 11155111, 31337],
     },
     storage: {
       evidence_bucket: "evidence-documents",
