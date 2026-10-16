@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { createGrainLot, listEstablishments } from "@/components/ui/data/client";
+import { createGrainLot, listEstablishments, sha256File } from "@/components/ui/data/client";
 import { ApiError, type Establishment, type GrainLotView } from "@/components/ui/data/types";
 import { ErrorMessage } from "@/components/ui";
 
@@ -12,6 +12,7 @@ export function GrainLotForm({ onCreated }: { onCreated: (lot: GrainLotView) => 
   const [crop, setCrop] = useState(CROPS[0]);
   const [establishmentId, setEst] = useState("");
   const [kgText, setKg] = useState("");
+  const [doc, setDoc] = useState<{ name: string; hash: string } | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -37,10 +38,11 @@ export function GrainLotForm({ onCreated }: { onCreated: (lot: GrainLotView) => 
     setSending(true);
     setApiError(null);
     try {
-      const lot = await createGrainLot({ code: code.trim().toUpperCase(), crop, establishmentId, kg });
+      const lot = await createGrainLot({ code: code.trim().toUpperCase(), crop, establishmentId, kg, docHash: doc?.hash });
       onCreated(lot);
       setCode("");
       setKg("");
+      setDoc(null);
     } catch (err) {
       setApiError(err instanceof ApiError ? err.message : "No pudimos registrar el lote.");
     } finally {
@@ -81,6 +83,21 @@ export function GrainLotForm({ onCreated }: { onCreated: (lot: GrainLotView) => 
           {errors.est && <span className="field-hint">{errors.est}</span>}
         </label>
       </div>
+      <label className="field">
+        Documento de origen (opcional)
+        <input
+          type="file"
+          accept=".pdf,image/*"
+          onChange={async (e) => {
+            const f = e.target.files?.[0];
+            setDoc(f ? { name: f.name, hash: await sha256File(f) } : null);
+          }}
+          style={{ height: "auto", padding: "12px 14px" }}
+        />
+        <span className="field-hint">
+          {doc ? `${doc.name} · huella ${doc.hash.slice(0, 10)}…` : "Remito o carta de porte. Solo se guarda su huella digital."}
+        </span>
+      </label>
       {apiError && <ErrorMessage text={apiError} />}
       <button className="btn block" type="submit" disabled={sending}>
         {sending ? "Registrando…" : "Registrar alimento"}

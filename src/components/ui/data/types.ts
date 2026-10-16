@@ -15,6 +15,7 @@ export interface Establishment {
   province: string;
   locality: string;
   kind: "ganadero" | "agricola";
+  organizationId?: string;
 }
 
 export interface GrainLotView {

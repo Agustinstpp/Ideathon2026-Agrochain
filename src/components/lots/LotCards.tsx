@@ -37,8 +37,8 @@ export function CattleLotCard({ lot }: { lot: CattleLotView }) {
       </div>
       <div className="row-side">
         <StatusBadge status={lot.status} />
-        <Link className="btn secondary small" href={`/alimentacion?lote=${lot.id}`}>
-          Historial
+        <Link className="btn secondary small" href={`/lotes/ganaderos/${lot.id}`}>
+          Ver ficha
         </Link>
         <Link className="btn small" href={`/pasaporte/${lot.id}`}>
           <Icon name="qr" size={18} />

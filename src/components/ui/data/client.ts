@@ -176,6 +176,7 @@ export async function listEstablishments(): Promise<Establishment[]> {
           province: e.province,
           locality: e.locality,
           kind: e.kind === "agricola" ? "agricola" : "ganadero",
+          organizationId: e.organization_id,
         }));
         return estCache!;
       }
@@ -185,6 +186,11 @@ export async function listEstablishments(): Promise<Establishment[]> {
   }
   estCache = DEMO_ESTABLISHMENTS;
   return estCache;
+}
+
+// La organización sale del establecimiento elegido (la define el backend).
+function orgOf(list: Establishment[], id: string) {
+  return list.find((e) => e.id === id)?.organizationId || ORG_ID;
 }
 
 function estName(list: Establishment[], id: string) {
@@ -235,11 +241,12 @@ export async function createGrainLot(input: NewGrainLot): Promise<GrainLotView> 
     saveDemo();
     return lot;
   }
-  const origin_hash = input.docHash || (await sha256Hex(JSON.stringify({ ...input, org: ORG_ID })));
+  const org = orgOf(ests, input.establishmentId);
+  const origin_hash = input.docHash || (await sha256Hex(JSON.stringify({ ...input, org })));
   const { res, body } = await request("/api/grain-lots", {
     method: "POST",
     body: JSON.stringify({
-      organization_id: ORG_ID,
+      organization_id: org,
       establishment_id: input.establishmentId,
       external_code: input.code,
       crop: input.crop,
@@ -303,11 +310,12 @@ export async function createCattleLot(input: NewCattleLot): Promise<CattleLotVie
     saveDemo();
     return lot;
   }
-  const establishment_hash = await sha256Hex(JSON.stringify({ est: input.establishmentId, org: ORG_ID }));
+  const org = orgOf(ests, input.establishmentId);
+  const establishment_hash = await sha256Hex(JSON.stringify({ est: input.establishmentId, org }));
   const { res, body } = await request("/api/cattle-lots", {
     method: "POST",
     body: JSON.stringify({
-      organization_id: ORG_ID,
+      organization_id: org,
       establishment_id: input.establishmentId,
       external_code: input.code,
       animal_count: input.animals,
@@ -445,4 +453,13 @@ export async function getDashboard(): Promise<DashboardData> {
       .reduce((s, f) => s + f.kg, 0),
     recent: feed.slice(0, 5),
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Ficha de un lote ganadero                                           */
+/* ------------------------------------------------------------------ */
+
+export async function getCattleLot(id: string): Promise<CattleLotView | null> {
+  const lots = await listCattleLots();
+  return lots.find((c) => c.id === id) || null;
 }

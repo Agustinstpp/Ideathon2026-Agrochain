@@ -96,6 +96,13 @@
 .ag .loading { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 20px 0; }
 .ag .spinner { width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--green); animation: ag-spin 0.8s linear infinite; }
 
+
+/* ---------- Ficha del lote / pasaporte ---------- */
+.ag .passport-card { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
+.ag .kv { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 8px 16px; margin: 0; font-size: 15px; }
+.ag .kv dt { color: var(--muted); }
+.ag .kv dd { margin: 0; font-weight: 500; overflow-wrap: anywhere; }
+.ag .passport-qr { align-self: center; padding: 12px; background: #fff; border: 1px solid var(--border); border-radius: 20px; }
 @media (min-width: 900px) {
 .ag.shell { padding: 20px 24px 48px; }
 .ag .navlinks { display: flex; }
