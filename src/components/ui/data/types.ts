@@ -69,6 +69,7 @@ export interface NewGrainLot {
   crop: string;
   establishmentId: string;
   kg: number;
+  docHash?: string; // SHA-256 del documento de origen, calculado en el navegador
 }
 
 export interface NewCattleLot {

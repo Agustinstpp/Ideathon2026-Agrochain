@@ -79,6 +79,11 @@ async function sha256Hex(text: string): Promise<string> {
   return "0x" + Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+export async function sha256File(file: File): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+  return "0x" + Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export function newOperationId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
   return `op-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -230,7 +235,7 @@ export async function createGrainLot(input: NewGrainLot): Promise<GrainLotView> 
     saveDemo();
     return lot;
   }
-  const origin_hash = await sha256Hex(JSON.stringify({ ...input, org: ORG_ID }));
+  const origin_hash = input.docHash || (await sha256Hex(JSON.stringify({ ...input, org: ORG_ID })));
   const { res, body } = await request("/api/grain-lots", {
     method: "POST",
     body: JSON.stringify({
