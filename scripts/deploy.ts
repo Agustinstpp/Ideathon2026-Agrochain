@@ -60,6 +60,14 @@ async function main() {
   const outputPath = path.join(outputDir, "AgroChainTraceDeployment.json");
   fs.writeFileSync(outputPath, JSON.stringify(deploymentInfo, null, 2));
   console.log(`Deployment metadata written to: ${outputPath}`);
+
+  const contractsDir = path.join(__dirname, "../src/lib/contracts");
+  if (!fs.existsSync(contractsDir)) {
+    fs.mkdirSync(contractsDir, { recursive: true });
+  }
+  const contractsPath = path.join(contractsDir, "AgroChainTrace.json");
+  fs.writeFileSync(contractsPath, JSON.stringify(deploymentInfo, null, 2));
+  console.log(`Deployment metadata written to: ${contractsPath}`);
 }
 
 main().catch((error) => {
