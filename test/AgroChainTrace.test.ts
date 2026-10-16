@@ -254,4 +254,68 @@ describe("AgroChainTrace Smart Contract", () => {
       ).to.be.revertedWith("AgroChainTrace: quantity must be > 0");
     });
   });
+
+  describe("Persona 1 Acceptance Test - Exact Scenario AGR-001 & GAN-001", () => {
+    it("should execute the mandatory acceptance flow (AGR-001 ID:1 10,000kg, GAN-001 ID:1 20 animals, 2,000kg assign -> 8,000kg balance, 9,000kg revert)", async () => {
+      const agr001Id = 1n;
+      const initialGrainKg = 10000n;
+      const originHash = ethers.keccak256(ethers.toUtf8Bytes("AGR-001-CERT"));
+
+      const gan001Id = 1n;
+      const animalCount = 20n;
+      const establishmentHash = ethers.keccak256(ethers.toUtf8Bytes("GAN-001-RENSPA"));
+
+      const assignment1Id = 1n;
+      const assignedKg = 2000n;
+      const expectedRemaining = 8000n;
+      const pStart = Math.floor(Date.now() / 1000);
+      const pEnd = pStart + 86400 * 15;
+
+      // 1. Register AGR-001 (ID 1, 10,000 kg)
+      await expect(contract.connect(operator).registerGrainLot(agr001Id, "Maiz AGR-001", initialGrainKg, originHash))
+        .to.emit(contract, "GrainLotRegistered")
+        .withArgs(agr001Id, "Maiz AGR-001", initialGrainKg, originHash, operator.address, (val: bigint) => val > 0n);
+
+      // 2. Register GAN-001 (ID 1, 20 animals)
+      await expect(contract.connect(operator).registerCattleLot(gan001Id, animalCount, establishmentHash))
+        .to.emit(contract, "CattleLotRegistered")
+        .withArgs(gan001Id, animalCount, establishmentHash, operator.address, (val: bigint) => val > 0n);
+
+      // 3. Assign 2,000 kg feed
+      await expect(contract.connect(operator).assignFeed(assignment1Id, agr001Id, gan001Id, assignedKg, pStart, pEnd))
+        .to.emit(contract, "FeedAssigned")
+        .withArgs(
+          assignment1Id,
+          agr001Id,
+          gan001Id,
+          assignedKg,
+          pStart,
+          pEnd,
+          expectedRemaining,
+          operator.address,
+          (val: bigint) => val > 0n
+        );
+
+      // Verify confirmed remaining quantity is 8,000 kg
+      const remainingBalance = await contract.getRemainingQuantity(agr001Id);
+      expect(remainingBalance).to.equal(8000n);
+
+      // 4. Attempt to assign 9,000 kg additional (exceeding 8,000 kg remaining)
+      const assignment2Id = 2n;
+      const excessiveKg = 9000n;
+      await expect(
+        contract.connect(operator).assignFeed(assignment2Id, agr001Id, gan001Id, excessiveKg, pStart, pEnd)
+      ).to.be.revertedWith("AgroChainTrace: insufficient grain inventory");
+
+      // Verify balance and history remain intact
+      expect(await contract.getRemainingQuantity(agr001Id)).to.equal(8000n);
+      expect(await contract.getAssignmentCount()).to.equal(1n);
+
+      const confirmedAssignment = await contract.getFeedAssignment(assignment1Id);
+      expect(confirmedAssignment.quantityKg).to.equal(2000n);
+      expect(confirmedAssignment.grainLotId).to.equal(agr001Id);
+      expect(confirmedAssignment.cattleLotId).to.equal(gan001Id);
+    });
+  });
 });
+
