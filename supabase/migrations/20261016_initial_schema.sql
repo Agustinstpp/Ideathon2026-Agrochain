@@ -49,7 +49,7 @@ CREATE TABLE IF NOT EXISTS public.grain_lots (
     origin_hash TEXT NOT NULL,
     blockchain_id BIGINT UNIQUE,
     blockchain_tx_hash TEXT,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'confirmed', 'failed')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'confirmed', 'failed', 'reconciliation_required')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT grain_lots_quantities_check CHECK (remaining_quantity_kg >= 0 AND remaining_quantity_kg <= initial_quantity_kg),
     CONSTRAINT grain_lots_org_external_code_unique UNIQUE (organization_id, external_code)
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS public.cattle_lots (
     establishment_hash TEXT NOT NULL,
     blockchain_id BIGINT UNIQUE,
     blockchain_tx_hash TEXT,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'confirmed', 'failed')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'confirmed', 'failed', 'reconciliation_required')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT cattle_lots_org_external_code_unique UNIQUE (organization_id, external_code)
 );
@@ -80,8 +80,9 @@ CREATE TABLE IF NOT EXISTS public.feed_assignments (
     period_end DATE NOT NULL,
     blockchain_assignment_id BIGINT UNIQUE,
     blockchain_tx_hash TEXT,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'confirmed', 'failed')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'confirmed', 'failed', 'reconciliation_required')),
     error_message TEXT,
+    operation_id TEXT UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT feed_assignments_period_check CHECK (period_start <= period_end)
 );
@@ -412,3 +413,35 @@ CREATE POLICY "Authenticated users can read blockchain mappings"
     ON public.blockchain_entity_mappings FOR SELECT
     TO authenticated
     USING (true);
+
+-- ====================================================================
+-- 6. CONFIGURACION DE STORAGE PRIVADO PARA EVIDENCIAS
+-- ====================================================================
+
+-- 6.1 Bucket privado para documentos de evidencia
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('evidence-documents', 'evidence-documents', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- 6.2 Politicas de seguridad para storage.objects
+CREATE POLICY "Users can upload evidence documents"
+    ON storage.objects FOR INSERT
+    TO authenticated
+    WITH CHECK (bucket_id = 'evidence-documents');
+
+CREATE POLICY "Users can read authorized evidence documents"
+    ON storage.objects FOR SELECT
+    TO authenticated
+    USING (bucket_id = 'evidence-documents');
+
+CREATE POLICY "Public read for evidence documents"
+    ON storage.objects FOR SELECT
+    TO anon
+    USING (bucket_id = 'evidence-documents');
+
+CREATE POLICY "Service role full access to storage"
+    ON storage.objects FOR ALL
+    TO service_role
+    USING (true)
+    WITH CHECK (true);
+

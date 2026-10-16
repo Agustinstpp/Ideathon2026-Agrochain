@@ -1,6 +1,9 @@
-# AgroChain FeedTrace — Guía de Integración para Persona 3 y Persona 4
+# AgroChain FeedTrace — Guía de Integración para Persona 2, Persona 4 y Jurado
 
-Documentación de contratos de API, formatos JSON, tipos TypeScript y ejemplos prácticos generada por **Persona 1**.
+Documentación completa de contratos de API, formatos JSON, tipos TypeScript y ejemplos prácticos generada por el **Desarrollador Backend Senior (Persona 3)**.
+
+> [!IMPORTANT]
+> Ver documentación técnica exhaustiva en [BACKEND_DOCS.md](file:///c:/Users/agust/Proyectos/Personal/Ideathon2026-Agrochain/BACKEND_DOCS.md).
 
 ---
 
@@ -9,86 +12,54 @@ Documentación de contratos de API, formatos JSON, tipos TypeScript y ejemplos p
 Todos los tipos de dominio están exportados en:
 ```typescript
 import {
+  Organization,
+  Profile,
+  Establishment,
   GrainLot,
   CattleLot,
   FeedAssignment,
+  EvidenceDocument,
   TraceabilityDossier,
-  EntityStatus
+  DashboardMetrics,
+  FeedHistoryResponse,
+  PassportPublicData,
+  EntityStatus,
 } from "@/lib/types";
 ```
 
 ---
 
-## 2. Endpoints de la API Backend
+## 2. Directorio de Endpoints API
 
-### 2.1 Registrar Lote Agrícola
-- **Método / Ruta:** `POST /api/grain-lots`
-- **Headers:**
-  - `Content-Type: application/json`
-  - `Authorization: Bearer <supabase_access_token>` (opcional en demo)
-- **Cuerpo de Solicitud (Request Body):**
-```json
-{
-  "organization_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-  "establishment_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-  "external_code": "MAIZ-2026-CH01",
-  "crop": "Maíz Picado Silo Grano Húmedo",
-  "initial_quantity_kg": 10000,
-  "origin_hash": "0x3a7e58f0...64hex"
-}
-```
-- **Respuesta Exitosa (201 Created):**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "e9b1192e-5036-4078-a0e2-63b71eb26d30",
-    "organization_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-    "external_code": "MAIZ-2026-CH01",
-    "crop": "Maíz Picado Silo Grano Húmedo",
-    "initial_quantity_kg": 10000,
-    "remaining_quantity_kg": 10000,
-    "blockchain_id": 1001,
-    "blockchain_tx_hash": "0x...",
-    "status": "confirmed",
-    "created_at": "2026-10-16T04:00:00.000Z"
-  },
-  "message": "Grain lot registered and confirmed on-chain"
-}
-```
+### 2.1 Dashboard General (Para Persona 2)
+- **Ruta:** `GET /api/dashboard`
+- **Headers:** `Authorization: Bearer <token>` o `x-organization-id: <uuid>` (opcional en demo)
+- **Retorna:** Totales de granos (inicial vs remanente), cabezas de ganado, asignaciones, actividad reciente y estado de conexión a la blockchain.
 
----
+### 2.2 Establecimientos
+- **Listar:** `GET /api/establishments`
+- **Crear:** `POST /api/establishments`
+  - Body: `{ organization_id, name, province, locality, geojson? }`
 
-### 2.2 Registrar Lote Ganadero
-- **Método / Ruta:** `POST /api/cattle-lots`
-- **Cuerpo de Solicitud:**
-```json
-{
-  "organization_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-  "establishment_id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-  "external_code": "FEEDLOT-CORRAL-03",
-  "animal_count": 120,
-  "establishment_hash": "0x8f2c3...64hex"
-}
-```
-- **Respuesta Exitosa (201 Created):**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "2d8f99e1-6712-4f32-8499-c89283920194",
-    "animal_count": 120,
-    "blockchain_id": 2001,
-    "blockchain_tx_hash": "0x...",
-    "status": "confirmed"
-  }
-}
-```
+### 2.3 Lotes Agrícolas
+- **Listar:** `GET /api/grain-lots`
+- **Registrar:** `POST /api/grain-lots`
+  - Body: `{ organization_id, establishment_id, external_code, crop, initial_quantity_kg, origin_hash }`
+- **Detalle:** `GET /api/grain-lots/[id]`
+- **Reconciliar con Blockchain (Fuente de Verdad):** `POST /api/grain-lots/[id]/reconcile`
+  - Consulta on-chain y sincroniza en Supabase si hubiera discrepancia.
 
----
+### 2.4 Lotes Ganaderos
+- **Listar:** `GET /api/cattle-lots`
+- **Registrar:** `POST /api/cattle-lots`
+  - Body: `{ organization_id, establishment_id, external_code, animal_count, establishment_hash }`
+- **Detalle:** `GET /api/cattle-lots/[id]`
+- **Historial de Alimentación:** `GET /api/cattle-lots/[id]/feed-history`
+  - Retorna cronología de raciones, cultivo de origen y hashes blockchain.
 
-### 2.3 Asignar Alimento (Operación Crítica Anti Double-Spending)
-- **Método / Ruta:** `POST /api/feed-assignments`
+### 2.5 Asignación de Alimento (Operación Crítica Anti Double-Spending)
+- **Ruta:** `POST /api/feed-assignments`
+- **Soporte Flexible:** Acepta tanto `camelCase` como `snake_case`.
 - **Cuerpo de Solicitud:**
 ```json
 {
@@ -96,10 +67,11 @@ import {
   "cattle_lot_id": "2d8f99e1-6712-4f32-8499-c89283920194",
   "quantity_kg": 2000,
   "period_start": "2026-10-01",
-  "period_end": "2026-10-31"
+  "period_end": "2026-10-31",
+  "operation_id": "op-feedlot-001"
 }
 ```
-- **Respuesta Exitosa (201 Created):**
+- **Respuesta (201 Created):**
 ```json
 {
   "success": true,
@@ -112,13 +84,15 @@ import {
     "period_end": "2026-10-31",
     "blockchain_assignment_id": 3001,
     "blockchain_tx_hash": "0x...",
-    "status": "confirmed"
+    "status": "confirmed",
+    "operation_id": "op-feedlot-001"
   },
   "remaining_quantity_kg": 8000,
+  "is_duplicate": false,
   "message": "Feed assignment verified and confirmed on blockchain"
 }
 ```
-- **Respuesta de Error por Saldo Insuficiente (400 Bad Request):**
+- **Rechazo por Saldo Insuficiente (400 Bad Request):**
 ```json
 {
   "success": false,
@@ -126,51 +100,31 @@ import {
 }
 ```
 
+### 2.6 Pasaporte Digital Público (Para Persona 4 & Código QR)
+- **Ruta:** `GET /api/passport/[id]` (donde `id` es el UUID del lote de ganado)
+- **Acceso:** Público / No requiere autenticación.
+- **Retorna:** Información autorizada para el consumidor final: datos del rodeo, raciones de grano consumidas con hash de origen, hashes de transacciones on-chain y verificación matemática de integridad de balance.
+
+### 2.7 Documentos de Evidencia y Hashes SHA-256
+- **Listar:** `GET /api/documents?lot_id=<uuid>`
+- **Subir/Registrar:** `POST /api/documents`
+  - Acepta `multipart/form-data` con archivo real (calcula SHA-256 sobre los bytes exactos) o `application/json` con metadatos.
+
+### 2.8 Diagnóstico y Estado del Sistema
+- **Ruta:** `GET /api/status`
+- Retorna estado de la blockchain, contratos, endpoints activos y versión.
+
 ---
 
-### 2.4 Obtener Ficha / Expediente Digital para Código QR (Persona 4)
-- **Método / Ruta:** `GET /api/traceability/[id]`
-- **Parámetro:** `id` del lote de ganado o lote de grano (UUID)
-- **Respuesta:**
-```json
-{
-  "success": true,
-  "data": {
-    "grain_lot": { ... },
-    "cattle_lot": { ... },
-    "feed_assignments": [ ... ],
-    "on_chain_verification": {
-      "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-      "chain_id": 80002,
-      "grain_lot_on_chain": {
-        "id": 1001,
-        "crop": "Maíz Picado Silo Grano Húmedo",
-        "initial_quantity_kg": 10000,
-        "remaining_quantity_kg": 8000,
-        "exists": true
-      },
-      "cattle_lot_on_chain": {
-        "id": 2001,
-        "animal_count": 120,
-        "exists": true
-      },
-      "verified_feed_assignments": [
-        {
-          "id": 3001,
-          "quantity_kg": 2000,
-          "period_start": "2026-10-01",
-          "period_end": "2026-10-31",
-          "tx_hash": "0x..."
-        }
-      ],
-      "balance_integrity_verified": true
-    }
-  }
-}
+## 3. Pruebas Automatizadas
+
+```bash
+# 21 pruebas de Hardhat del contrato Solidity
+npm run test:contracts
+
+# 40 pruebas de integración del Backend (idempotencia, concurrencia, seguridad multi-tenant)
+npm run test:integration
+
+# Verificación de compilación limpia de Next.js
+npm run build
 ```
-
----
-
-### 2.5 Diagnóstico y Salud del Sistema
-- **Método / Ruta:** `GET /api/status`
-- Retorna si el backend está en modo live testnet o en simulación local, la dirección del contrato y la wallet técnica.
