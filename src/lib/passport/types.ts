@@ -9,12 +9,13 @@ export interface PassportCattleInfo {
   external_code: string;
   animal_count: number;
   species?: string;
-  establishment_name: string;
+  establishment_id?: string;
+  establishment_name?: string;
   renspa_declared?: string;
-  establishment_hash: string;
-  province: string;
-  locality: string;
-  declared_origin: string;
+  establishment_hash?: string;
+  province?: string;
+  locality?: string;
+  declared_origin?: string;
   category?: string;
   blockchain_id?: number | null;
 }
@@ -51,12 +52,6 @@ export interface PassportEvidenceDoc {
   download_url?: string;
 }
 
-export interface PassportComplianceNote {
-  standard: string;
-  status: string;
-  detail: string;
-}
-
 export interface PassportBlockchainInfo {
   network: string;
   chain_id: number;
@@ -78,6 +73,18 @@ export interface PassportData {
   cattle: PassportCattleInfo;
   feeding_history: PassportFeedingRecord[];
   evidence_documents: PassportEvidenceDoc[];
-  regulatory_compliance_notes: PassportComplianceNote[];
   blockchain_verification: PassportBlockchainInfo;
+}
+
+/**
+ * Validador estricto de blockchain:
+ * Solo si tx_hash existe, no es nulo, no contiene "simulat", no es chain 31337 y no está marcado como simulado.
+ */
+export function isRealBlockchainTx(txHash?: string | null, chainId?: number, isSimulated?: boolean): boolean {
+  if (!txHash) return false;
+  if (isSimulated) return false;
+  if (chainId === 31337) return false;
+  if (txHash.toLowerCase().includes('simulat')) return false;
+  if (txHash.length < 60) return false;
+  return true;
 }

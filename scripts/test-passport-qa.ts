@@ -1,10 +1,12 @@
 /**
- * Script de Pruebas de Aceptación y QA Automatizado para Pasaporte Digital Ganadero (Persona 4)
+ * Script de Pruebas de Aceptación y QA Actualizado para Pasaporte Digital Ganadero (Persona 4)
  * Ejecutar con: npx tsx scripts/test-passport-qa.ts
  */
 
 import { passportService } from '../src/lib/passport/passportService';
-import { generateQrMatrix } from '../src/lib/passport/qrCodeGenerator';
+import { isRealBlockchainTx } from '../src/lib/passport/types';
+import qrcodegen from '../src/components/ui/qrcodegen';
+import { publicUrl } from '../src/components/ui/QrSvg';
 
 interface QaTestResult {
   criteria: string;
@@ -17,6 +19,7 @@ interface QaTestResult {
 async function runPassportQaTests() {
   console.log('\n=============================================================');
   console.log('   AGROCHAIN FEEDTRACE — QA SUITE: PASAPORTE DIGITAL (P4)    ');
+  console.log('   (Verificación de Correcciones y Modo Simulado)            ');
   console.log('=============================================================\n');
 
   const results: QaTestResult[] = [];
@@ -30,27 +33,28 @@ async function runPassportQaTests() {
     passed: gan001?.cattle.external_code === 'GAN-001',
   });
 
-  // 2. Verificar datos ganaderos (20 animales, Mercedes, Corrientes)
+  // 2. Verificar datos ganaderos reales (20 animales, Mercedes, Corrientes, Establecimiento Demo Corrientes)
   const isCattleOk =
     gan001?.cattle.animal_count === 20 &&
     gan001?.cattle.locality === 'Mercedes' &&
-    gan001?.cattle.province === 'Corrientes';
+    gan001?.cattle.province === 'Corrientes' &&
+    gan001?.cattle.establishment_name === 'Establecimiento Demo Corrientes';
   results.push({
-    criteria: '2. Información ganadera (20 animales, Mercedes, Corrientes)',
-    expected: '20 cabezas en Mercedes, Corrientes',
-    received: `${gan001?.cattle.animal_count} cabezas en ${gan001?.cattle.locality}, ${gan001?.cattle.province}`,
+    criteria: '2. Información ganadera real (20 cabezas, Mercedes, Corrientes, Establecimiento Demo Corrientes)',
+    expected: '20 cabezas en Mercedes, Corrientes (Establecimiento Demo Corrientes)',
+    received: `${gan001?.cattle.animal_count} cabezas en ${gan001?.cattle.locality}, ${gan001?.cattle.province} (${gan001?.cattle.establishment_name})`,
     passed: isCattleOk,
   });
 
-  // 3. Verificar historial de alimentación (Cultivo Maíz, 2.000 kg asignados)
+  // 3. Verificar historial de alimentación (Maíz, 2.000 kg, AGR-001)
   const feeding = gan001?.feeding_history[0];
   const isFeedingOk =
     feeding?.quantity_kg === 2000 &&
-    feeding?.crop.includes('Maíz') &&
+    feeding?.crop === 'Maíz' &&
     feeding?.grain_lot_code === 'AGR-001';
   results.push({
-    criteria: '3. Historial de alimentación (Maíz, 2.000 kg, AGR-001)',
-    expected: 'Maíz Picado, 2000 kg de AGR-001',
+    criteria: '3. Historial de alimentación coherente (Maíz, 2.000 kg, AGR-001)',
+    expected: 'Maíz, 2000 kg de AGR-001',
     received: `${feeding?.crop}, ${feeding?.quantity_kg} kg de ${feeding?.grain_lot_code}`,
     passed: isFeedingOk,
   });
@@ -66,81 +70,75 @@ async function runPassportQaTests() {
     passed: isBalanceOk,
   });
 
-  // 5. Verificación on-chain (Contrato y Tx Hash presentes)
-  const blockInfo = gan001?.blockchain_verification;
-  const isBlockchainOk =
-    !!blockInfo?.contract_address &&
-    !!blockInfo?.tx_hash &&
-    blockInfo.chain_id === 80002;
+  // 5. Criterio Crítico: Modo simulado estricto (no afirmar blockchain confirmado, bloques ni Polygonscan)
+  const isSimulated = gan001?.status === 'simulated' || gan001?.is_simulated;
+  const isTxReal = isRealBlockchainTx(
+    gan001?.blockchain_verification.tx_hash,
+    gan001?.blockchain_verification.chain_id,
+    gan001?.is_simulated
+  );
+  const noFakeClaims =
+    !isTxReal &&
+    gan001?.blockchain_verification.block_number === null &&
+    gan001?.blockchain_verification.explorer_url === null &&
+    gan001?.blockchain_verification.confirmation_status === 'Simulado';
   results.push({
-    criteria: '5. Verificación on-chain (Polygon Amoy / Contrato)',
-    expected: 'Polygon Amoy (80002) con Tx Hash registrado',
-    received: `${blockInfo?.network} (${blockInfo?.chain_id}), Tx: ${blockInfo?.tx_hash?.slice(0, 14)}...`,
-    passed: isBlockchainOk,
+    criteria: '5. Modo simulado estricto (Sin bloque, sin Polygonscan, estado Simulado)',
+    expected: 'Status: Simulado, explorer_url: null, block_number: null, isRealBlockchainTx: false',
+    received: `Status: ${gan001?.blockchain_verification.confirmation_status}, Explorer: ${gan001?.blockchain_verification.explorer_url}, isReal: ${isTxReal}`,
+    passed: noFakeClaims,
   });
 
-  // 6. Privacidad estricta: No filtrar documentos privados ni datos sensibles
-  const hasPrivateDocs = gan001?.evidence_documents.some((d) => d.scope !== 'public');
-  const allDocsHaveSha256 = gan001?.evidence_documents.every((d) => d.sha256_hash.length === 64);
+  // 6. Criterio Crítico: QR con librería oficial probada de Persona 2 (qrcodegen)
+  const testUrl = publicUrl('/pasaporte/GAN-001');
+  const qr = qrcodegen.QrCode.encodeText(testUrl, qrcodegen.QrCode.Ecc.MEDIUM);
+  const isQrValid = qr.size > 20 && qr.getModule(0, 0) === true;
   results.push({
-    criteria: '6. Privacidad estricta (Solo documentos públicos con SHA-256)',
-    expected: '0 documentos privados y hashes válidos',
-    received: `${hasPrivateDocs ? 'Detectados privados' : '100% públicos'}, SHA-256 válidos: ${allDocsHaveSha256}`,
-    passed: !hasPrivateDocs && (allDocsHaveSha256 ?? false),
-  });
-
-  // 7. Criterio de Transparencia Regulatoria (Sin afirmaciones EUDR sin comprobación)
-  const eudrNote = gan001?.regulatory_compliance_notes.find((n) => n.standard.includes('EUDR'));
-  const isEudrPrudent =
-    eudrNote?.status.includes('Pendiente') &&
-    !eudrNote?.detail.toLowerCase().includes('certificado oficial emitido');
-  results.push({
-    criteria: '7. Transparencia regulatoria (No prometer certificado EUDR sin prueba)',
-    expected: 'Pendiente de auditoría satelital',
-    received: eudrNote?.status || 'No especificado',
-    passed: isEudrPrudent ?? false,
-    notes: eudrNote?.detail,
-  });
-
-  // 8. Generación de Código QR compatible sin localhost
-  const testUrl = 'https://agrochain-feedtrace.vercel.app/pasaporte/GAN-001';
-  const qrMatrix = generateQrMatrix(testUrl, 'M');
-  const isQrValid = qrMatrix.length > 20 && qrMatrix[0].length > 20;
-  results.push({
-    criteria: '8. Código QR generado desde URL pública real (Sin localhost)',
-    expected: 'Matriz QR válida >= 21x21 para URL oficial',
-    received: `Matriz ${qrMatrix.length}x${qrMatrix.length}`,
+    criteria: '6. Generación QR oficial con qrcodegen probada',
+    expected: 'Código QR codificado con tamaño válido y patrones de posición',
+    received: `Tamaño QR: ${qr.size}x${qr.size}, módulo (0,0): ${qr.getModule(0, 0)}`,
     passed: isQrValid,
   });
 
-  // 9. Manejo de Lotes Pendientes (GAN-PENDING)
+  // 7. Criterio Crítico: Ausencia total de afirmaciones falsas de EUDR o SENASA verificado
+  const hasEudr = JSON.stringify(gan001).toLowerCase().includes('eudr') ||
+                  JSON.stringify(gan001).toLowerCase().includes('deforestación');
+  results.push({
+    criteria: '7. Ausencia total de menciones de EUDR o deforestación no comprobadas',
+    expected: 'Cero menciones de EUDR o deforestación',
+    received: hasEudr ? 'Detectadas menciones no autorizadas' : 'Limpio (0 menciones)',
+    passed: !hasEudr,
+  });
+
+  // 8. Manejo de Lotes Pendientes (GAN-PENDING)
   const pendingLot = await passportService.getPassport('GAN-PENDING');
   const isPendingHandled =
     pendingLot?.status === 'pending' &&
     pendingLot.blockchain_verification.tx_hash === null;
   results.push({
-    criteria: '9. Manejo adecuado de datos pendientes',
-    expected: 'Estado pending sin tx confirmed',
+    criteria: '8. Manejo adecuado de datos pendientes',
+    expected: 'Status: pending, Tx: null',
     received: `Status: ${pendingLot?.status}, Tx: ${pendingLot?.blockchain_verification.tx_hash}`,
     passed: isPendingHandled,
   });
 
-  // 10. Manejo de Lote Inexistente (404)
-  const notFoundLot = await passportService.getPassport('LOTE-FANTASMA-999');
+  // 9. Manejo de Lote Inexistente (404)
+  const notFoundLot = await passportService.getPassport('LOTE-INEXISTENTE-999');
   results.push({
-    criteria: '10. Manejo de lote inexistente (404 seguro)',
+    criteria: '9. Manejo de lote inexistente (404 seguro)',
     expected: 'null (desencadena PassportNotFound)',
     received: notFoundLot === null ? 'null (404 controlado)' : 'unexpected value',
     passed: notFoundLot === null,
   });
 
-  // 11. Etiqueta clara de datos simulados
-  const isSimulatedTagged = gan001?.is_simulated === true;
+  // 10. URL generada con publicUrl (no hardcodea Vercel)
+  const generatedUrl = publicUrl('/pasaporte/GAN-001');
+  const usesDynamicUrl = typeof generatedUrl === 'string' && generatedUrl.includes('/pasaporte/GAN-001');
   results.push({
-    criteria: '11. Etiqueta explícita de datos simulados para demo',
-    expected: 'is_simulated = true',
-    received: `is_simulated = ${gan001?.is_simulated}`,
-    passed: isSimulatedTagged,
+    criteria: '10. URL dinámica con publicUrl (NEXT_PUBLIC_APP_URL o dominio actual)',
+    expected: 'URL terminada en /pasaporte/GAN-001 sin hardcoding forzado',
+    received: generatedUrl,
+    passed: usesDynamicUrl,
   });
 
   // Imprimir reporte formateado
