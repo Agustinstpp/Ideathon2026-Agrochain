@@ -10,6 +10,19 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || "";
 
 /**
+ * Determina si hay una instancia real y alcanzable de Supabase configurada en las variables de entorno.
+ */
+export function isSupabaseConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+  return Boolean(
+    url &&
+    !url.includes("mock-supabase") &&
+    !url.includes("your-project") &&
+    (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+  );
+}
+
+/**
  * Cliente estándar que opera con la identidad y permisos RLS del usuario autenticado.
  * Acepta el token JWT enviado en el header Authorization.
  */
