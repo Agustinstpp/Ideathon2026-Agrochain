@@ -1,0 +1,161 @@
+{
+  "passports": {
+    "GAN-001": {
+      "lot_id": "GAN-001",
+      "uuid": "2d8f99e1-6712-4f32-8499-c89283920194",
+      "status": "confirmed",
+      "is_simulated": true,
+      "updated_at": "2026-10-16T11:00:00.000Z",
+      "cattle": {
+        "external_code": "GAN-001",
+        "animal_count": 20,
+        "species": "Bovino (Novillos Brangus)",
+        "establishment_name": "Estancia El Ombú (Establecimiento Ficticio)",
+        "renspa_declared": "12.034.0.05678/01",
+        "establishment_hash": "0x8f2c3d4e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d",
+        "province": "Corrientes",
+        "locality": "Mercedes",
+        "declared_origin": "Mercedes, Corrientes, Argentina",
+        "category": "Invernada intensiva a corral",
+        "blockchain_id": 2001
+      },
+      "feeding_history": [
+        {
+          "assignment_id": "ASG-3001",
+          "blockchain_assignment_id": 3001,
+          "grain_lot_code": "AGR-001",
+          "grain_lot_uuid": "e9b1192e-5036-4078-a0e2-63b71eb26d30",
+          "crop": "Maíz Picado Silo Grano Húmedo",
+          "origin_farm": "Campo La Esperanza (Establecimiento Ficticio)",
+          "origin_location": "Bandera, Santiago del Estero",
+          "quantity_kg": 2000,
+          "initial_grain_lot_quantity_kg": 10000,
+          "remaining_grain_lot_quantity_kg": 8000,
+          "period_start": "2026-10-01",
+          "period_end": "2026-10-31",
+          "registered_at": "2026-10-16T08:30:00.000Z",
+          "status": "confirmed",
+          "blockchain_tx_hash": "0x4a9b2c3d1e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b",
+          "verified_on_chain": true
+        }
+      ],
+      "evidence_documents": [
+        {
+          "id": "EVD-001",
+          "title": "Remito Electrónico de Grano - Silo Maíz",
+          "document_type": "Remito de Cereal / Carta de Porte",
+          "scope": "public",
+          "file_name": "remito_maiz_AGR001.pdf",
+          "sha256_hash": "4a5e1e5823a31e80228d404e40247b003191196a0b27e1938d0799a3240d233b",
+          "is_simulated": true,
+          "created_at": "2026-10-02T14:15:00.000Z",
+          "status": "Declarado con comprobante criptográfico"
+        },
+        {
+          "id": "EVD-002",
+          "title": "Documento de Tránsito Electrónico SENASA (DT-e)",
+          "document_type": "DT-e Ganadero Oficial (Simulado)",
+          "scope": "public",
+          "file_name": "dte_senasa_GAN001.pdf",
+          "sha256_hash": "7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069",
+          "is_simulated": true,
+          "created_at": "2026-10-05T09:20:00.000Z",
+          "status": "Declarado con comprobante criptográfico"
+        },
+        {
+          "id": "EVD-003",
+          "title": "Análisis Nutricional de Ración de Maíz Picado",
+          "document_type": "Informe de Laboratorio Agropecuario",
+          "scope": "public",
+          "file_name": "analisis_nutricional_lab_2026.pdf",
+          "sha256_hash": "b2f5ff47436671b6e533d8dc3614845d80ceee880f9baf713760731d67e52126",
+          "is_simulated": true,
+          "created_at": "2026-10-06T16:45:00.000Z",
+          "status": "Declarado con comprobante criptográfico"
+        }
+      ],
+      "regulatory_compliance_notes": [
+        {
+          "standard": "Trazabilidad de Alimentación y Control Anti Double-Spending",
+          "status": "Registro blockchain confirmado",
+          "detail": "Asignación cuantitativa de 2.000 kg registrada en Smart Contract, deduciendo el saldo remanente a 8.000 kg."
+        },
+        {
+          "standard": "Verificación Satelital de Deforestación / EUDR",
+          "status": "Pendiente de auditoría",
+          "detail": "Sin certificación emitida. Nota de transparencia: Este lote no cuenta con verificación satelital de libre de deforestación confirmada."
+        }
+      ],
+      "blockchain_verification": {
+        "network": "Polygon Amoy Testnet",
+        "chain_id": 80002,
+        "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "tx_hash": "0x4a9b2c3d1e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b",
+        "confirmation_status": "Confirmado on-chain",
+        "block_number": 14920431,
+        "block_timestamp": "2026-10-16T08:31:12.000Z",
+        "explorer_url": "https://amoy.polygonscan.com/tx/0x4a9b2c3d1e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b",
+        "is_mock_network": false
+      }
+    },
+    "GAN-PENDING": {
+      "lot_id": "GAN-PENDING",
+      "uuid": "7c123456-7890-4abc-def0-123456789abc",
+      "status": "pending",
+      "is_simulated": true,
+      "updated_at": "2026-10-16T11:15:00.000Z",
+      "cattle": {
+        "external_code": "GAN-PENDING",
+        "animal_count": 35,
+        "species": "Bovino (Terneros Hereford)",
+        "establishment_name": "Establecimiento La Querencia (Ficticio)",
+        "renspa_declared": "12.088.0.01234/02",
+        "establishment_hash": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
+        "province": "Corrientes",
+        "locality": "Curuzú Cuatiá",
+        "declared_origin": "Curuzú Cuatiá, Corrientes, Argentina",
+        "category": "Recría",
+        "blockchain_id": null
+      },
+      "feeding_history": [
+        {
+          "assignment_id": "ASG-PENDING-01",
+          "blockchain_assignment_id": null,
+          "grain_lot_code": "AGR-001",
+          "grain_lot_uuid": "e9b1192e-5036-4078-a0e2-63b71eb26d30",
+          "crop": "Maíz Silo",
+          "origin_farm": "Campo La Esperanza (Ficticio)",
+          "origin_location": "Bandera, Santiago del Estero",
+          "quantity_kg": 1500,
+          "initial_grain_lot_quantity_kg": 10000,
+          "remaining_grain_lot_quantity_kg": 8000,
+          "period_start": "2026-10-15",
+          "period_end": "2026-11-15",
+          "registered_at": "2026-10-16T10:10:00.000Z",
+          "status": "pending",
+          "blockchain_tx_hash": null,
+          "verified_on_chain": false
+        }
+      ],
+      "evidence_documents": [],
+      "regulatory_compliance_notes": [
+        {
+          "standard": "Trazabilidad de Alimentación",
+          "status": "Pendiente",
+          "detail": "Asignación enviada al nodo registrador, a la espera de confirmación de bloque."
+        }
+      ],
+      "blockchain_verification": {
+        "network": "Polygon Amoy Testnet",
+        "chain_id": 80002,
+        "contract_address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+        "tx_hash": null,
+        "confirmation_status": "Transacción pendiente en mempool",
+        "block_number": null,
+        "block_timestamp": null,
+        "explorer_url": null,
+        "is_mock_network": false
+      }
+    }
+  }
+}
